@@ -150,6 +150,9 @@ class BenchmarkRunner:
         # Generate prompts based on workload parameters
         prompts = self._generate_prompts(workload["name"], workload["prompt_len"], 100)
         
+        # Determine if this is a streaming workload
+        is_streaming = workload.get("stream", False)
+        
         # Prepare results
         results = {
             "name": workload["name"],
@@ -158,6 +161,7 @@ class BenchmarkRunner:
             "duration_s": workload["duration_s"],
             "prompt_len": workload["prompt_len"],
             "gen_tokens": workload["gen_tokens"],
+            "stream": is_streaming,
             "requests": [],
         }
         
@@ -167,6 +171,21 @@ class BenchmarkRunner:
         # Run the workload
         start_time = time.time()
         end_time = start_time + workload["duration_s"]
+        request_count = 0
+        
+        if is_streaming:
+            # Run streaming benchmark
+            results = await self._run_streaming_workload(endpoint, prompts, workload, results, delay, end_time)
+        else:
+            # Run regular benchmark
+            results = await self._run_regular_workload(endpoint, prompts, workload, results, delay, end_time)
+        
+        logger.info(f"Workload {workload['name']} complete: {results['summary']['successful_requests']} successful requests, {results['summary']['error_rate']*100:.2f}% error rate")
+        
+        return results
+        
+    async def _run_regular_workload(self, endpoint: str, prompts: List[str], workload: Dict, results: Dict, delay: float, end_time: float) -> Dict:
+        """Run a regular (non-streaming) workload."""
         request_count = 0
         
         async with httpx.AsyncClient(timeout=60) as client:
@@ -233,6 +252,125 @@ class BenchmarkRunner:
                     await asyncio.sleep(delay - elapsed)
         
         # Calculate summary metrics
+        return self._calculate_metrics(results, workload)
+    
+    async def _run_streaming_workload(self, endpoint: str, prompts: List[str], workload: Dict, results: Dict, delay: float, end_time: float) -> Dict:
+        """Run a streaming workload."""
+        request_count = 0
+        
+        async with httpx.AsyncClient(timeout=60) as client:
+            while time.time() < end_time:
+                # Select prompt
+                prompt_idx = request_count % len(prompts)
+                prompt = prompts[prompt_idx]
+                
+                # Record request start time
+                request_start = time.time()
+                
+                # Send streaming request
+                try:
+                    async with client.stream(
+                        "POST",
+                        f"{endpoint}/infer",
+                        json={
+                            "prompt": prompt,
+                            "max_tokens": workload["gen_tokens"],
+                            "temperature": 0.2,
+                            "top_p": 0.95,
+                            "stream": True,
+                        },
+                        timeout=60
+                    ) as response:
+                        if response.status_code != 200:
+                            # Record error
+                            results["requests"].append({
+                                "id": request_count,
+                                "latency_ms": int((time.time() - request_start) * 1000),
+                                "tokens_in": 0,
+                                "tokens_out": 0,
+                                "ttft_ms": 0,
+                                "error": await response.text(),
+                            })
+                        else:
+                            # Process streaming response
+                            tokens = []
+                            first_token_time = None
+                            last_token_time = None
+                            token_times = []
+                            
+                            async for line in response.aiter_lines():
+                                if line.startswith("data: "):
+                                    try:
+                                        data = json.loads(line[6:])
+                                        current_time = time.time()
+                                        
+                                        # Record first token time
+                                        if first_token_time is None and "token" in data and data["token"]:
+                                            first_token_time = current_time
+                                            ttft_ms = int((first_token_time - request_start) * 1000)
+                                        
+                                        # Record token and time
+                                        if "token" in data and data["token"]:
+                                            tokens.append(data["token"])
+                                            token_times.append(current_time)
+                                            last_token_time = current_time
+                                        
+                                        # Break if this is the last token
+                                        if data.get("is_last", False):
+                                            break
+                                    except json.JSONDecodeError:
+                                        pass
+                            
+                            # Calculate streaming metrics
+                            request_end = time.time()
+                            total_latency_ms = int((request_end - request_start) * 1000)
+                            ttft_ms = int((first_token_time - request_start) * 1000) if first_token_time else 0
+                            
+                            # Calculate inter-token latencies
+                            inter_token_latencies = []
+                            if len(token_times) > 1:
+                                for i in range(1, len(token_times)):
+                                    inter_token_latencies.append((token_times[i] - token_times[i-1]) * 1000)
+                            
+                            # Record request metrics
+                            results["requests"].append({
+                                "id": request_count,
+                                "latency_ms": total_latency_ms,
+                                "ttft_ms": ttft_ms,
+                                "tokens_in": len(prompt.split()),
+                                "tokens_out": len(tokens),
+                                "inter_token_latency_ms": statistics.mean(inter_token_latencies) if inter_token_latencies else 0,
+                                "token_gen_rate": len(tokens) / (last_token_time - first_token_time) if first_token_time and last_token_time and first_token_time != last_token_time else 0,
+                                "error": None,
+                            })
+                
+                except Exception as e:
+                    request_end = time.time()
+                    
+                    # Record error
+                    results["requests"].append({
+                        "id": request_count,
+                        "latency_ms": int((request_end - request_start) * 1000),
+                        "ttft_ms": 0,
+                        "tokens_in": 0,
+                        "tokens_out": 0,
+                        "inter_token_latency_ms": 0,
+                        "token_gen_rate": 0,
+                        "error": str(e),
+                    })
+                
+                request_count += 1
+                
+                # Sleep to maintain QPS
+                elapsed = time.time() - request_start
+                if elapsed < delay:
+                    await asyncio.sleep(delay - elapsed)
+        
+        # Calculate streaming-specific metrics
+        return self._calculate_streaming_metrics(results, workload)
+    
+    def _calculate_metrics(self, results: Dict, workload: Dict) -> Dict:
+        """Calculate metrics for regular workloads."""
         latencies = [r["latency_ms"] for r in results["requests"] if r["error"] is None]
         tokens_in = sum(r["tokens_in"] for r in results["requests"] if r["error"] is None)
         tokens_out = sum(r["tokens_out"] for r in results["requests"] if r["error"] is None)
@@ -251,7 +389,40 @@ class BenchmarkRunner:
             "tokens_per_second": tokens_out / workload["duration_s"] if workload["duration_s"] > 0 else 0,
         }
         
-        logger.info(f"Workload {workload['name']} complete: {results['summary']['successful_requests']} successful requests, {results['summary']['error_rate']*100:.2f}% error rate")
+        return results
+    
+    def _calculate_streaming_metrics(self, results: Dict, workload: Dict) -> Dict:
+        """Calculate metrics for streaming workloads."""
+        # Standard metrics
+        latencies = [r["latency_ms"] for r in results["requests"] if r["error"] is None]
+        tokens_in = sum(r["tokens_in"] for r in results["requests"] if r["error"] is None)
+        tokens_out = sum(r["tokens_out"] for r in results["requests"] if r["error"] is None)
+        errors = sum(1 for r in results["requests"] if r["error"] is not None)
+        
+        # Streaming-specific metrics
+        ttfts = [r["ttft_ms"] for r in results["requests"] if r["error"] is None and r["ttft_ms"] > 0]
+        inter_token_latencies = [r["inter_token_latency_ms"] for r in results["requests"] if r["error"] is None and r["inter_token_latency_ms"] > 0]
+        token_gen_rates = [r["token_gen_rate"] for r in results["requests"] if r["error"] is None and r["token_gen_rate"] > 0]
+        
+        results["summary"] = {
+            "total_requests": len(results["requests"]),
+            "successful_requests": len(results["requests"]) - errors,
+            "error_rate": errors / len(results["requests"]) if len(results["requests"]) > 0 else 0,
+            "p50_latency_ms": statistics.median(latencies) if latencies else 0,
+            "p95_latency_ms": statistics.quantiles(latencies, n=20)[18] if len(latencies) >= 20 else (max(latencies) if latencies else 0),
+            "p99_latency_ms": statistics.quantiles(latencies, n=100)[98] if len(latencies) >= 100 else (max(latencies) if latencies else 0),
+            "avg_latency_ms": statistics.mean(latencies) if latencies else 0,
+            "total_tokens_in": tokens_in,
+            "total_tokens_out": tokens_out,
+            "tokens_per_second": tokens_out / workload["duration_s"] if workload["duration_s"] > 0 else 0,
+            
+            # Streaming-specific metrics
+            "p50_ttft_ms": statistics.median(ttfts) if ttfts else 0,
+            "p95_ttft_ms": statistics.quantiles(ttfts, n=20)[18] if len(ttfts) >= 20 else (max(ttfts) if ttfts else 0),
+            "avg_ttft_ms": statistics.mean(ttfts) if ttfts else 0,
+            "avg_inter_token_latency_ms": statistics.mean(inter_token_latencies) if inter_token_latencies else 0,
+            "avg_token_gen_rate": statistics.mean(token_gen_rates) if token_gen_rates else 0,
+        }
         
         return results
     

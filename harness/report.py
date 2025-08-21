@@ -160,6 +160,8 @@ def generate_report(results: Dict[str, Any], output_path: str) -> None:
                             <th>p99 Latency (ms)</th>
                             <th>Tokens/sec</th>
                             <th>Error Rate</th>
+                            {f'<th>TTFT (ms)</th>' if result.get('stream', False) else ''}
+                            {f'<th>Token Rate</th>' if result.get('stream', False) else ''}
                         </tr>
                     </thead>
                     <tbody>
@@ -168,6 +170,7 @@ def generate_report(results: Dict[str, Any], output_path: str) -> None:
         for result in workload_results:
             runtime = result["runtime"]
             summary = result["summary"]
+            is_streaming = result.get("stream", False)
             
             html += f"""
                         <tr>
@@ -177,6 +180,8 @@ def generate_report(results: Dict[str, Any], output_path: str) -> None:
                             <td>{summary["p99_latency_ms"]:.2f}</td>
                             <td>{summary["tokens_per_second"]:.2f}</td>
                             <td>{summary["error_rate"]*100:.2f}%</td>
+                            {f'<td>{summary.get("avg_ttft_ms", 0):.2f}</td>' if is_streaming else ''}
+                            {f'<td>{summary.get("avg_token_gen_rate", 0):.2f}</td>' if is_streaming else ''}
                         </tr>
             """
         

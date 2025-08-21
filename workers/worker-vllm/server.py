@@ -8,16 +8,17 @@ from typing import Dict, List, Optional, Union
 import torch
 import uvicorn
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from prometheus_client import start_http_server, Counter, Histogram, Gauge
+import asyncio
 
 # Import vLLM components
 from vllm import LLMEngine, SamplingParams
 from vllm.utils import random_uuid
 
 # Import local modules
-from metrics import setup_metrics
+from metrics import setup_metrics, record_ttft, update_token_gen_rate, record_inter_token_latency
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -119,7 +120,14 @@ async def infer(request: InferenceRequest):
             max_tokens=request.max_tokens,
         )
         
-        # Generate text
+        # Handle streaming differently
+        if request.stream:
+            return StreamingResponse(
+                stream_tokens(request.prompt, sampling_params, start_time),
+                media_type="text/event-stream"
+            )
+        
+        # Non-streaming generation
         result = ENGINE.generate(request.prompt, sampling_params)
         
         # Get the generated text
@@ -134,6 +142,11 @@ async def infer(request: InferenceRequest):
         inference_requests.labels(engine="vllm").inc()
         inference_latency.labels(engine="vllm").observe(latency_ms)
         generated_tokens.labels(engine="vllm").inc(tokens_out)
+        
+        # Calculate and update token generation rate
+        if latency_ms > 0:
+            tokens_per_second = (tokens_out * 1000) / latency_ms
+            update_token_gen_rate(tokens_per_second, "vllm")
         
         # Update GPU memory metrics
         if torch.cuda.is_available():
@@ -161,6 +174,102 @@ async def infer(request: InferenceRequest):
         if "CUDA out of memory" in str(e):
             oom_counter.labels(engine="vllm").inc()
         raise HTTPException(status_code=500, detail=str(e))
+
+async def stream_tokens(prompt: str, sampling_params: SamplingParams, start_time: float):
+    """Stream tokens from the model with streaming-specific metrics."""
+    global ENGINE
+    
+    # Track metrics for streaming
+    first_token_received = False
+    last_token_time = start_time
+    tokens_generated = 0
+    
+    # Create request ID
+    request_id = random_uuid()
+    
+    try:
+        # Add request to the engine
+        ENGINE.add_request(request_id, prompt, sampling_params)
+        
+        # Process request and stream results
+        while True:
+            # Get request output (this is non-blocking)
+            request_output = ENGINE.get_request_output(request_id)
+            
+            # If request is finished, break
+            if request_output is not None and request_output.finished:
+                break
+            
+            # If we have new tokens, yield them
+            if request_output is not None and len(request_output.outputs) > 0:
+                # Get the latest output
+                output = request_output.outputs[0]
+                
+                # If this is the first token, record TTFT
+                if not first_token_received and len(output.token_ids) > 0:
+                    first_token_received = True
+                    ttft = (time.time() - start_time) * 1000
+                    record_ttft(ttft, "vllm")
+                    logger.info(f"Time to first token: {ttft:.2f}ms")
+                
+                # If we have new tokens since last check
+                if tokens_generated < len(output.token_ids):
+                    # Get the new tokens
+                    new_tokens = output.token_ids[tokens_generated:]
+                    new_text = output.text[len(output.text) - len(new_tokens):]
+                    
+                    # Record inter-token latency
+                    current_time = time.time()
+                    if tokens_generated > 0:  # Skip for the first token
+                        inter_token_ms = (current_time - last_token_time) * 1000
+                        record_inter_token_latency(inter_token_ms, "vllm")
+                    
+                    # Update last token time
+                    last_token_time = current_time
+                    
+                    # Update tokens generated
+                    tokens_generated = len(output.token_ids)
+                    
+                    # Update token generation rate
+                    elapsed_sec = current_time - start_time
+                    if elapsed_sec > 0:
+                        tokens_per_second = tokens_generated / elapsed_sec
+                        update_token_gen_rate(tokens_per_second, "vllm")
+                    
+                    # Create event data
+                    data = {
+                        "token": new_text,
+                        "index": tokens_generated,
+                        "is_last": request_output.finished
+                    }
+                    
+                    # Yield SSE event
+                    yield f"data: {json.dumps(data)}\n\n"
+                    
+                    # Update metrics
+                    generated_tokens.labels(engine="vllm").inc(len(new_tokens))
+            
+            # Sleep a bit to avoid busy waiting
+            await asyncio.sleep(0.01)
+        
+        # Send final event
+        yield f"data: {json.dumps({'is_last': True, 'token': '', 'index': tokens_generated})}\n\n"
+        
+        # Update inference request counter
+        inference_requests.labels(engine="vllm").inc()
+        
+    except Exception as e:
+        logger.error(f"Streaming error: {e}")
+        if "CUDA out of memory" in str(e):
+            oom_counter.labels(engine="vllm").inc()
+        # Send error event
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
+    finally:
+        # Always try to clear the request
+        try:
+            ENGINE.abort_request(request_id)
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

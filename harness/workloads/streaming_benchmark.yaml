@@ -1,0 +1,39 @@
+model: meta-llama/Llama-3-8b-instruct
+runtimes: [vllm, transformers]
+workloads:
+  - name: qa-streaming
+    qps: 2
+    duration_s: 120
+    prompt_len: 256
+    gen_tokens: 128
+    stream: true
+    template: |
+      Answer the following question concisely and accurately:
+      
+      Question: {question}
+      
+      Answer:
+    questions:
+      - "What is the capital of France?"
+      - "Who wrote the novel '1984'?"
+      - "What is the boiling point of water in Celsius?"
+      - "What is the largest planet in our solar system?"
+      - "Who painted the Mona Lisa?"
+  
+  - name: code-streaming
+    qps: 1
+    duration_s: 120
+    prompt_len: 512
+    gen_tokens: 256
+    stream: true
+    template: |
+      Write a {language} function that {task}
+      
+      Your code should be well-documented and handle edge cases.
+      
+      ```{language}
+    tasks:
+      - language: "python"
+        task: "sorts a list of integers using the quicksort algorithm"
+      - language: "javascript" 
+        task: "calculates the Fibonacci sequence up to n terms using dynamic programming"
