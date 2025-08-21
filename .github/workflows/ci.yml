@@ -57,7 +57,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Start Docker Compose
-        run: docker-compose up -d postgres minio worker-stub
+        run: docker compose up -d postgres minio worker-stub
 
       - name: Wait for services
         run: sleep 10
@@ -70,3 +70,104 @@ jobs:
 
       - name: Run smoke test
         run: bash scripts/smoke.sh
+        
+      - name: Run minimal worker
+        run: |
+          cd scripts
+          python3 -m pip install fastapi uvicorn pydantic
+          python3 -c "
+          import os
+          with open('minimal_server.py', 'w') as f:
+              f.write('''
+          import os
+          import time
+          import json
+          from fastapi import FastAPI
+          from pydantic import BaseModel
+          from prometheus_client import generate_latest, Counter, Histogram
+          import uvicorn
+
+          app = FastAPI()
+
+          # Prometheus Metrics
+          inference_requests_total = Counter('inference_requests_total', 'Total inference requests', ['engine'])
+          inference_latency_ms = Histogram('inference_latency_ms', 'Inference latency in milliseconds', ['engine'])
+          generated_tokens_total = Counter('generated_tokens_total', 'Total generated tokens', ['engine'])
+
+          class InferRequest(BaseModel):
+              prompt: str
+              max_tokens: int = 128
+              temperature: float = 0.2
+              top_p: float = 0.95
+              stream: bool = False
+
+          class InferResponse(BaseModel):
+              output: str
+              latency_ms: int
+              tokens_in: int
+              tokens_out: int
+              runtime_meta: dict
+
+          @app.get('/healthz')
+          async def healthz():
+              return {'status': 'ok'}
+
+          @app.get('/metrics')
+          async def metrics():
+              return generate_latest()
+
+          @app.post('/infer')
+          async def infer(request: InferRequest):
+              start_time = time.time()
+              engine = 'minimal-test-worker'
+
+              # Simulate inference
+              output = f'This is a simulated response for prompt: {request.prompt}'
+              
+              tokens_in = len(request.prompt.split())
+              tokens_out = len(output.split())
+              latency_ms = int((time.time() - start_time) * 1000)
+
+              inference_requests_total.labels(engine=engine).inc()
+              inference_latency_ms.labels(engine=engine).observe(latency_ms)
+              generated_tokens_total.labels(engine=engine).inc(tokens_out)
+
+              return InferResponse(
+                  output=output,
+                  latency_ms=latency_ms,
+                  tokens_in=tokens_in,
+                  tokens_out=tokens_out,
+                  runtime_meta={'engine': engine, 'version': '0.1.0', 'cuda': 'N/A', 'gpu': 'CPU'}
+              )
+
+          if __name__ == '__main__':
+              uvicorn.run(app, host='0.0.0.0', port=8000)
+          ''')
+          "
+          python3 minimal_server.py &
+          
+      - name: Wait for minimal worker
+        run: sleep 5
+        
+      - name: Test minimal worker integration
+        run: |
+          curl -X POST http://localhost:8080/api/v1/deploy \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "test-model",
+              "runtime": "minimal",
+              "quant": "fp16"
+            }'
+          
+          # Test inference
+          curl -X POST http://localhost:8080/api/v1/infer \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "test-model",
+              "runtime": "minimal",
+              "prompt": "Test prompt",
+              "max_tokens": 10,
+              "temperature": 0.7,
+              "top_p": 0.95,
+              "stream": false
+            }'

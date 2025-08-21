@@ -58,7 +58,7 @@ jobs:
             CUDA_VERSION=${{ env.CUDA_VERSION }}
 
       - name: Start infrastructure
-        run: docker-compose up -d postgres minio prometheus grafana
+        run: docker compose up -d postgres minio prometheus grafana
 
       - name: Wait for services
         run: sleep 10
@@ -69,8 +69,9 @@ jobs:
       - name: Wait for API server
         run: sleep 5
 
-      - name: Create short benchmark config
+      - name: Create benchmark configs
         run: |
+          # Regular benchmark
           cat > /tmp/nightly_bench.yaml << EOF
           model: meta-llama/Llama-3-8b-instruct
           runtimes: [vllm, transformers]
@@ -80,12 +81,35 @@ jobs:
               duration_s: 60
               prompt_len: 256
               gen_tokens: 128
+            - name: code-long
+              qps: 1
+              duration_s: 120
+              prompt_len: 512
+              gen_tokens: 256
+          EOF
+          
+          # Streaming benchmark
+          cat > /tmp/streaming_bench.yaml << EOF
+          model: meta-llama/Llama-3-8b-instruct
+          runtimes: [vllm, transformers]
+          workloads:
+            - name: qa-streaming
+              qps: 1
+              duration_s: 60
+              prompt_len: 256
+              gen_tokens: 128
+              stream: true
           EOF
 
-      - name: Run benchmark
+      - name: Run benchmarks
         run: |
+          # Run regular benchmark
           export RUN_ID=nightly_$(date +%Y%m%d)
           python harness/run_bench.py --run-id $RUN_ID --config /tmp/nightly_bench.yaml
+          
+          # Run streaming benchmark
+          export STREAM_RUN_ID=streaming_$(date +%Y%m%d)
+          python harness/run_bench.py --run-id $STREAM_RUN_ID --config /tmp/streaming_bench.yaml
 
       - name: Collect artifacts
         run: |
@@ -93,6 +117,9 @@ jobs:
           cp /tmp/nightly_*/report.html artifacts/
           cp /tmp/nightly_*/summary.csv artifacts/
           cp /tmp/nightly_*/raw.json artifacts/
+          cp /tmp/streaming_*/report.html artifacts/streaming_report.html
+          cp /tmp/streaming_*/summary.csv artifacts/streaming_summary.csv
+          cp /tmp/streaming_*/raw.json artifacts/streaming_raw.json
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -114,4 +141,12 @@ jobs:
             - Date: $(date +%Y-%m-%d)
             
             ### Summary
-            See attached artifacts for detailed results.
+            Two benchmark suites were run:
+            - Standard inference benchmark
+            - Streaming inference benchmark
+            
+            See attached artifacts for detailed results including:
+            - Latency metrics (p50, p95, p99)
+            - Token generation rates
+            - Time to first token (streaming)
+            - Inter-token latency (streaming)
