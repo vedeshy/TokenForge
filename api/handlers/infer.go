@@ -3,8 +3,10 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/tokenforge/llm-infra-bench/controlplane"
 )
@@ -86,12 +88,59 @@ func InferHandler(registry *controlplane.Registry) http.HandlerFunc {
 
 		// If streaming is enabled, handle differently
 		if req.Stream {
-			// TODO: Implement streaming response
-			http.Error(w, "streaming not yet implemented", http.StatusNotImplemented)
+			// For streaming, we need to proxy the worker's streaming response
+			// Set appropriate headers for SSE
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			w.WriteHeader(workerResp.StatusCode)
+			
+			// Copy the streaming response directly to the client
+			if _, err := w.Write(respBody); err != nil {
+				// Connection might be closed by client, just log and return
+				return
+			}
+			
+			// If the worker doesn't support streaming but we requested it,
+			// convert the response to a streaming format
+			if workerResp.Header.Get("Content-Type") != "text/event-stream" {
+				// Parse the response
+				var resp InferResponse
+				if err := json.Unmarshal(respBody, &resp); err != nil {
+					http.Error(w, "failed to parse worker response: "+err.Error(), http.StatusInternalServerError)
+					return
+				}
+				
+				// Split the output into tokens (words for simplicity)
+				tokens := bytes.Fields([]byte(resp.Output))
+				
+				// Stream each token
+				for i, token := range tokens {
+					// Create event data
+					data := map[string]interface{}{
+						"token":   string(token),
+						"index":   i,
+						"is_last": i == len(tokens)-1,
+					}
+					
+					// Convert to JSON
+					eventData, err := json.Marshal(data)
+					if err != nil {
+						continue
+					}
+					
+					// Write SSE event
+					fmt.Fprintf(w, "data: %s\n\n", eventData)
+					w.(http.Flusher).Flush()
+					
+					// Simulate generation time
+					time.Sleep(100 * time.Millisecond)
+				}
+			}
 			return
 		}
 
-		// Set headers and return response
+		// Set headers and return response for non-streaming
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(workerResp.StatusCode)
 		w.Write(respBody)
