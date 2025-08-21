@@ -1,0 +1,69 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Copy requirements (without installing vLLM)
+COPY requirements.txt .
+RUN pip install --no-cache-dir fastapi uvicorn pydantic prometheus-client httpx
+
+# Copy application code
+COPY server.py .
+COPY metrics.py .
+
+# Create a stub server script
+RUN echo '#!/usr/bin/env python3\n\
+import time\n\
+import uvicorn\n\
+from fastapi import FastAPI, HTTPException\n\
+from fastapi.responses import JSONResponse\n\
+from pydantic import BaseModel\n\
+from prometheus_client import start_http_server, Counter, Histogram, Gauge\n\
+\n\
+app = FastAPI(title="vLLM Worker Stub")\n\
+\n\
+class InferenceRequest(BaseModel):\n\
+    prompt: str\n\
+    max_tokens: int = 128\n\
+    temperature: float = 0.2\n\
+    top_p: float = 0.95\n\
+    stream: bool = False\n\
+\n\
+@app.get("/healthz")\n\
+async def healthz():\n\
+    return {"status": "ok"}\n\
+\n\
+@app.get("/metrics")\n\
+async def metrics():\n\
+    return {"message": "Metrics available at :8001/metrics"}\n\
+\n\
+@app.post("/infer")\n\
+async def infer(request: InferenceRequest):\n\
+    # Simulate processing time\n\
+    time.sleep(0.5)\n\
+    \n\
+    # Return stub response\n\
+    return {\n\
+        "output": f"This is a stub response for: {request.prompt[:20]}...",\n\
+        "latency_ms": 500,\n\
+        "tokens_in": len(request.prompt.split()),\n\
+        "tokens_out": 20,\n\
+        "runtime_meta": {\n\
+            "engine": "vllm-stub",\n\
+            "version": "0.0.0",\n\
+            "cuda": "N/A",\n\
+            "gpu": "CPU",\n\
+        },\n\
+    }\n\
+\n\
+if __name__ == "__main__":\n\
+    # Start Prometheus metrics server\n\
+    start_http_server(8001)\n\
+    # Start API server\n\
+    uvicorn.run(app, host="0.0.0.0", port=8000)\n\
+' > /app/stub_server.py
+
+# Expose ports
+EXPOSE 8000 8001
+
+# Run the stub server
+CMD ["python", "stub_server.py"]

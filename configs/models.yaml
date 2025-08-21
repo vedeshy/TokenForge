@@ -1,0 +1,4 @@
+models:
+  - name: meta-llama/Llama-3-8b-instruct
+    quant: fp16
+    hash: sha256:pin_exact_snapshot

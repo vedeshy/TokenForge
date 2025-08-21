@@ -1,0 +1,83 @@
+api:
+  image: ghcr.io/tokenforge/api:latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+postgres:
+  image: postgres:15
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  persistence:
+    enabled: true
+    size: 10Gi
+
+minio:
+  image: minio/minio:latest
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  persistence:
+    enabled: true
+    size: 20Gi
+
+prometheus:
+  image: prom/prometheus:latest
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  persistence:
+    enabled: true
+    size: 10Gi
+
+grafana:
+  image: grafana/grafana:latest
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  persistence:
+    enabled: true
+    size: 5Gi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: tokenforge.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: api
+          port: 8080
+        - path: /grafana
+          pathType: Prefix
+          service: grafana
+          port: 3000
+        - path: /minio
+          pathType: Prefix
+          service: minio
+          port: 9001

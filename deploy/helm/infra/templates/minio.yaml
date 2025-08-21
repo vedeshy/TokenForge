@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+      - name: minio
+        image: {{ .Values.minio.image }}
+        args:
+        - server
+        - /data
+        - --console-address
+        - ":9001"
+        env:
+        - name: MINIO_ROOT_USER
+          value: minioadmin
+        - name: MINIO_ROOT_PASSWORD
+          value: minioadmin
+        ports:
+        - containerPort: 9000
+          name: api
+        - containerPort: 9001
+          name: console
+        volumeMounts:
+        - name: minio-data
+          mountPath: /data
+        resources:
+          requests:
+            cpu: {{ .Values.minio.resources.requests.cpu }}
+            memory: {{ .Values.minio.resources.requests.memory }}
+          limits:
+            cpu: {{ .Values.minio.resources.limits.cpu }}
+            memory: {{ .Values.minio.resources.limits.memory }}
+      volumes:
+      - name: minio-data
+        {{- if .Values.minio.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: minio-pvc
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  selector:
+    app: minio
+  ports:
+  - port: 9000
+    targetPort: api
+    name: api
+  - port: 9001
+    targetPort: console
+    name: console
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-setup
+spec:
+  template:
+    spec:
+      containers:
+      - name: mc
+        image: minio/mc
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          sleep 5
+          mc config host add myminio http://minio:9000 minioadmin minioadmin
+          mc mb myminio/tokenforge-benchmarks
+          mc policy set public myminio/tokenforge-benchmarks
+      restartPolicy: OnFailure
+{{- if .Values.minio.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.minio.persistence.size }}
+{{- end }}

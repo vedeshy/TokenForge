@@ -1,0 +1,13 @@
+model: meta-llama/Llama-3-8b-instruct
+runtimes: [vllm, transformers]
+workloads:
+  - name: qa-short
+    qps: 5
+    duration_s: 180
+    prompt_len: 256
+    gen_tokens: 128
+  - name: code-long
+    qps: 2
+    duration_s: 180
+    prompt_len: 2048
+    gen_tokens: 256

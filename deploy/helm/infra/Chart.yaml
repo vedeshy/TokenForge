@@ -1,0 +1,6 @@
+apiVersion: v2
+name: tokenforge
+description: A Helm chart for TokenForge LLM Inference & Benchmark Platform
+type: application
+version: 0.1.0
+appVersion: 0.1.0
