@@ -1,0 +1,37 @@
+model: meta-llama/Llama-3-8b-instruct
+runtimes: [vllm, transformers]
+workloads:
+  - name: qa-short
+    qps: 5
+    duration_s: 180
+    prompt_len: 256
+    gen_tokens: 128
+    template: |
+      Answer the following question concisely and accurately:
+      
+      Question: {question}
+      
+      Answer:
+    questions:
+      - "What is the capital of France?"
+      - "Who wrote the novel '1984'?"
+      - "What is the boiling point of water in Celsius?"
+      - "What is the largest planet in our solar system?"
+      - "Who painted the Mona Lisa?"
+      - "What is the chemical symbol for gold?"
+      - "What is the tallest mountain in the world?"
+      - "What year did World War II end?"
+      - "What is the speed of light?"
+      - "Who is the current Secretary-General of the United Nations?"
+  
+  - name: qa-medium
+    qps: 3
+    duration_s: 180
+    prompt_len: 512
+    gen_tokens: 256
+    template: |
+      You are a helpful AI assistant. Please answer the following question with a detailed explanation:
+      
+      Question: {question}
+      
+      Answer:

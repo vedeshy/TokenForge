@@ -1,0 +1,51 @@
+model: meta-llama/Llama-3-8b-instruct
+runtimes: [vllm, transformers]
+workloads:
+  - name: code-generation
+    qps: 2
+    duration_s: 180
+    prompt_len: 512
+    gen_tokens: 1024
+    template: |
+      Write a {language} function that {task}
+      
+      Your code should be well-documented and handle edge cases.
+      
+      ```{language}
+    tasks:
+      - language: "python"
+        task: "sorts a list of integers using the quicksort algorithm"
+      - language: "python"
+        task: "implements a binary search tree with insert, delete, and search operations"
+      - language: "javascript"
+        task: "calculates the Fibonacci sequence up to n terms using dynamic programming"
+      - language: "python"
+        task: "performs matrix multiplication for two input matrices"
+      - language: "javascript"
+        task: "implements a simple HTTP server that serves static files"
+  
+  - name: code-completion
+    qps: 3
+    duration_s: 180
+    prompt_len: 1024
+    gen_tokens: 256
+    template: |
+      Complete the following code snippet:
+      
+      ```{language}
+      {code_prefix}
+    code_prefixes:
+      - language: "python"
+        code_prefix: |
+          def binary_search(arr, target):
+              left = 0
+              right = len(arr) - 1
+              
+              while left <= right:
+                  mid = (left + right) // 2
+      - language: "javascript"
+        code_prefix: |
+          function debounce(func, wait) {
+            let timeout;
+            
+            return function executedFunction(...args) {
