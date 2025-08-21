@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#666" />
+    </marker>
+  </defs>
+  <style>
+    .node {
+      fill: #fff;
+      stroke: #333;
+      stroke-width: 2px;
+    }
+    .label {
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+    .edge {
+      stroke: #666;
+      stroke-width: 2px;
+      fill: none;
+      marker-end: url(#arrow);
+    }
+  </style>
+  
+  <!-- Nodes -->
+  <rect class="node" x="350" y="50" width="120" height="40" rx="5" />
+  <text class="label" x="410" y="70">API Gateway</text>
+  
+  <rect class="node" x="350" y="150" width="120" height="40" rx="5" />
+  <text class="label" x="410" y="170">Control Plane</text>
+  
+  <rect class="node" x="350" y="250" width="120" height="40" rx="5" />
+  <text class="label" x="410" y="270">K8s Client</text>
+  
+  <rect class="node" x="350" y="350" width="120" height="40" rx="5" />
+  <text class="label" x="410" y="370">Kubernetes</text>
+  
+  <rect class="node" x="200" y="450" width="120" height="40" rx="5" />
+  <text class="label" x="260" y="470">Worker vLLM</text>
+  
+  <rect class="node" x="500" y="450" width="120" height="40" rx="5" />
+  <text class="label" x="560" y="470">Worker Transformers</text>
+  
+  <rect class="node" x="600" y="150" width="120" height="40" rx="5" />
+  <text class="label" x="660" y="170">Benchmark Harness</text>
+  
+  <rect class="node" x="700" y="250" width="120" height="40" rx="5" />
+  <text class="label" x="760" y="270">S3/MinIO</text>
+  
+  <rect class="node" x="100" y="250" width="120" height="40" rx="5" />
+  <text class="label" x="160" y="270">Postgres</text>
+  
+  <rect class="node" x="350" y="550" width="120" height="40" rx="5" />
+  <text class="label" x="410" y="570">Prometheus</text>
+  
+  <rect class="node" x="600" y="550" width="120" height="40" rx="5" />
+  <text class="label" x="660" y="570">Grafana</text>
+  
+  <!-- Edges -->
+  <path class="edge" d="M410,90 L410,150" />
+  <path class="edge" d="M410,190 L410,250" />
+  <path class="edge" d="M410,290 L410,350" />
+  <path class="edge" d="M350,370 L260,450" />
+  <path class="edge" d="M470,370 L560,450" />
+  <path class="edge" d="M470,70 L660,150" />
+  <path class="edge" d="M660,190 L260,450" />
+  <path class="edge" d="M660,190 L560,450" />
+  <path class="edge" d="M660,190 L760,250" />
+  <path class="edge" d="M660,190 L160,250" />
+  <path class="edge" d="M350,70 L160,250" />
+  <path class="edge" d="M260,490 L410,550" />
+  <path class="edge" d="M560,490 L410,550" />
+  <path class="edge" d="M410,90 L410,550" />
+  <path class="edge" d="M470,570 L600,570" />
+</svg>

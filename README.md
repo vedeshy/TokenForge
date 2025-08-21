@@ -13,7 +13,26 @@ TokenForge is a platform for deploying, serving, and benchmarking Large Language
 
 ## System Architecture
 
-![Architecture Diagram](docs/architecture.png)
+```mermaid
+graph TD
+    A[API Gateway] --> B[Control Plane]
+    B --> C[K8s Client]
+    C --> D[Kubernetes]
+    D --> E[Worker vLLM]
+    D --> F[Worker Transformers]
+    A --> G[Benchmark Harness]
+    G --> E
+    G --> F
+    G --> H[S3/MinIO]
+    G --> I[Postgres]
+    A --> I
+    E --> J[Prometheus]
+    F --> J
+    A --> J
+    J --> K[Grafana]
+```
+
+For a more detailed architecture diagram, see [Architecture Documentation](docs/architecture.md)
 
 - **API Gateway**: Go HTTP server with endpoints for deployment, inference, and benchmarking
 - **Control Plane**: Go service for managing model deployments on Kubernetes
