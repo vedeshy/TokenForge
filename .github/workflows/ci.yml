@@ -42,6 +42,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./workers/worker-vllm
+          file: ./workers/worker-vllm/Dockerfile.simple
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker-vllm:latest
           cache-from: type=gha
