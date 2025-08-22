@@ -1,0 +1,39 @@
+model: meta-llama/Llama-3-8b-instruct
+runtimes: [vllm, transformers]
+workloads:
+  - name: qa-short
+    qps: 2
+    duration_s: 60
+    prompt_len: 256
+    gen_tokens: 128
+    evaluate: true
+  
+  - name: factual_qa-template
+    qps: 2
+    duration_s: 60
+    prompt_len: 256
+    gen_tokens: 128
+    evaluate: true
+  
+  - name: logical_reasoning-template
+    qps: 1
+    duration_s: 90
+    prompt_len: 384
+    gen_tokens: 192
+    evaluate: true
+  
+  - name: function_implementation-template
+    qps: 1
+    duration_s: 120
+    prompt_len: 512
+    gen_tokens: 256
+    evaluate: true
+    language: Python
+  
+  - name: qa-streaming
+    qps: 1
+    duration_s: 60
+    prompt_len: 256
+    gen_tokens: 128
+    stream: true
+    evaluate: true

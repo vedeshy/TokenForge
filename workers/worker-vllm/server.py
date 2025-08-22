@@ -3,6 +3,7 @@ import os
 import time
 import json
 import logging
+import psutil
 from typing import Dict, List, Optional, Union
 
 import torch
@@ -19,6 +20,39 @@ from vllm.utils import random_uuid
 
 # Import local modules
 from metrics import setup_metrics, record_ttft, update_token_gen_rate, record_inter_token_latency
+
+def get_memory_usage() -> Dict[str, Any]:
+    """Get current memory usage."""
+    process = psutil.Process(os.getpid())
+    memory_info = process.memory_info()
+    
+    result = {
+        "cpu": {
+            "rss": memory_info.rss,  # Resident Set Size
+            "vms": memory_info.vms,  # Virtual Memory Size
+        }
+    }
+    
+    # Add GPU memory info if available
+    if torch.cuda.is_available():
+        gpu_info = {}
+        for i in range(torch.cuda.device_count()):
+            gpu_info[f"gpu_{i}_allocated"] = int(torch.cuda.memory_allocated(i))
+            gpu_info[f"gpu_{i}_reserved"] = int(torch.cuda.memory_reserved(i))
+            
+            # Get memory stats if available
+            try:
+                memory_stats = torch.cuda.memory_stats(i)
+                gpu_info[f"gpu_{i}_active_bytes"] = memory_stats.get("active_bytes.all.current", 0)
+                gpu_info[f"gpu_{i}_reserved_bytes"] = memory_stats.get("reserved_bytes.all.current", 0)
+                gpu_info[f"gpu_{i}_active_count"] = memory_stats.get("active_bytes.all.current_count", 0)
+                gpu_info[f"gpu_{i}_segment_count"] = memory_stats.get("segment.all.current_count", 0)
+            except:
+                pass
+                
+        result["gpu"] = gpu_info
+    
+    return result
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +95,7 @@ class InferenceResponse(BaseModel):
     tokens_in: int
     tokens_out: int
     runtime_meta: Dict[str, str]
+    memory_usage: Optional[Dict[str, Any]] = None
 
 # Global variables
 ENGINE = None
@@ -160,6 +195,9 @@ async def infer(request: InferenceRequest):
             "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu",
         }
         
+        # Get memory usage
+        memory_usage = get_memory_usage()
+        
         # Return response
         return InferenceResponse(
             output=generated_text,
@@ -167,6 +205,7 @@ async def infer(request: InferenceRequest):
             tokens_in=tokens_in,
             tokens_out=tokens_out,
             runtime_meta=runtime_meta,
+            memory_usage=memory_usage,
         )
     
     except Exception as e:

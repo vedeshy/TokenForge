@@ -1,0 +1,30 @@
+model: meta-llama/Llama-3-8b-instruct
+runtimes: [vllm, transformers]
+workloads:
+  - name: factual_qa-template
+    qps: 2
+    duration_s: 60
+    prompt_len: 256
+    gen_tokens: 128
+    stream: false
+  
+  - name: function_implementation-template
+    qps: 1
+    duration_s: 120
+    prompt_len: 512
+    gen_tokens: 256
+    stream: false
+  
+  - name: logical_reasoning-template
+    qps: 1
+    duration_s: 90
+    prompt_len: 384
+    gen_tokens: 192
+    stream: false
+  
+  - name: story_writing-template
+    qps: 0.5
+    duration_s: 180
+    prompt_len: 512
+    gen_tokens: 512
+    stream: true

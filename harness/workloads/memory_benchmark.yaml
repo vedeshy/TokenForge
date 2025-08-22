@@ -1,0 +1,27 @@
+model: meta-llama/Llama-3-8b-instruct
+runtimes: [vllm, transformers]
+workloads:
+  - name: qa-short-memory
+    qps: 1
+    duration_s: 60
+    prompt_len: 256
+    gen_tokens: 128
+    evaluate: true
+    profile_memory: true
+  
+  - name: code-long-memory
+    qps: 0.5
+    duration_s: 120
+    prompt_len: 512
+    gen_tokens: 256
+    evaluate: true
+    profile_memory: true
+  
+  - name: qa-streaming-memory
+    qps: 1
+    duration_s: 60
+    prompt_len: 256
+    gen_tokens: 128
+    stream: true
+    evaluate: true
+    profile_memory: true

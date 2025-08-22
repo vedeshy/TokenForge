@@ -1,0 +1,19 @@
+- language: "Python"
+  task: "implements a binary search algorithm"
+  signature: "def binary_search(arr: list, target: int) -> int:"
+
+- language: "JavaScript"
+  task: "calculates the Fibonacci sequence up to n terms"
+  signature: "function fibonacci(n) {"
+
+- language: "Go"
+  task: "sorts a slice of integers using the quicksort algorithm"
+  signature: "func QuickSort(arr []int) []int {"
+
+- language: "Java"
+  task: "implements a linked list with add, remove, and search operations"
+  signature: "public class LinkedList<T> {"
+
+- language: "Rust"
+  task: "implements a thread-safe counter using atomic operations"
+  signature: "pub struct AtomicCounter {"
