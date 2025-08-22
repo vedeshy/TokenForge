@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository_owner }}/tokenforge
   CUDA_VERSION: '12.2'
   GPU_SKU: 'L4'
 
@@ -40,7 +40,7 @@ jobs:
         with:
           context: ./workers/worker-vllm
           push: true
-          tags: ${{ env.REGISTRY }}/${{ github.repository }}/worker-vllm:nightly
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker-vllm:nightly
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -51,7 +51,7 @@ jobs:
         with:
           context: ./workers/worker-transformers
           push: true
-          tags: ${{ env.REGISTRY }}/${{ github.repository }}/worker-transformers:nightly
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker-transformers:nightly
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -133,7 +133,7 @@ jobs:
           body: |
             ## Nightly Benchmark Results
             
-            Benchmark completed successfully! [View full report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            Benchmark completed successfully! [View full report](https://github.com/${{ github.repository_owner }}/tokenforge/actions/runs/${{ github.run_id }})
             
             ### Environment
             - GPU: ${{ env.GPU_SKU }}
