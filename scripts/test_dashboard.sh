@@ -46,8 +46,9 @@ echo "For testing purposes, you can use a browser extension to bypass CORS restr
 
 # Start the UI dashboard in the background
 echo "Starting UI dashboard..."
-./scripts/run_ui_dashboard.sh &
+cd ui/ui-dashboard && npm run dev &
 UI_PID=$!
+cd ../..
 
 # Wait for the UI dashboard to start
 echo "Waiting for UI dashboard to start..."

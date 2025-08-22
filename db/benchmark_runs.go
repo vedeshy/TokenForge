@@ -1,7 +1,7 @@
 package db
 
 import (
-	"context"
+	"errors"
 	"time"
 )
 
@@ -23,9 +23,12 @@ type BenchmarkRun struct {
 	} `json:"workloads"`
 }
 
+// ErrNotConnected is returned when the database client is not connected
+var ErrNotConnected = errors.New("database client not connected")
+
 // GetAllBenchmarkRuns returns all benchmark runs
 func (c *Client) GetAllBenchmarkRuns() ([]BenchmarkRun, error) {
-	if c == nil || c.db == nil {
+	if c == nil {
 		return nil, ErrNotConnected
 	}
 
