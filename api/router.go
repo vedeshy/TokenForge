@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/tokenforge/llm-infra-bench/api/handlers"
@@ -40,6 +41,16 @@ func setupRouter() http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
+	
+	// CORS middleware
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300, // Maximum value not ignored by any of major browsers
+	}))
 
 	// Prometheus metrics endpoint
 	r.Handle("/metrics", promhttp.Handler())
@@ -53,11 +64,15 @@ func setupRouter() http.Handler {
 	// API routes
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Post("/deploy", handlers.DeployHandler(registry))
+		r.Get("/deployments", handlers.DeploymentsHandler(registry))
+		r.Get("/deployments/{model}/{runtime}", handlers.DeploymentStatusHandler(registry))
 		r.Post("/infer", handlers.InferHandler(registry))
 
 		r.Route("/benchmarks", func(r chi.Router) {
 			r.Post("/run", handlers.BenchmarkRunHandler(dbClient))
 			r.Get("/run/{id}", handlers.BenchmarkStatusHandler(dbClient))
+			r.Get("/runs", handlers.BenchmarkRunsHandler(dbClient))
+			r.Get("/report/{id}", handlers.BenchmarkReportHandler(dbClient))
 		})
 
 		r.Get("/models", handlers.ModelsHandler(configPath))
