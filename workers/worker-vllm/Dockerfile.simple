@@ -19,13 +19,13 @@ RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
 COPY requirements.txt .
 
 # Install dependencies one by one for better error visibility
-RUN pip3 install --no-cache-dir fastapi>=0.104.1,<0.105.0
-RUN pip3 install --no-cache-dir uvicorn>=0.24.0,<0.25.0
-RUN pip3 install --no-cache-dir pydantic>=2.4.2,<2.5.0
-RUN pip3 install --no-cache-dir httpx>=0.25.0,<0.26.0
-RUN pip3 install --no-cache-dir prometheus-client>=0.17.1,<0.18.0
-RUN pip3 install --no-cache-dir torch>=2.0.0,<2.1.0
-RUN pip3 install --no-cache-dir vllm>=0.2.0,<0.6.0
+RUN pip3 install --no-cache-dir "fastapi>=0.104.1,<0.105.0"
+RUN pip3 install --no-cache-dir "uvicorn>=0.24.0,<0.25.0"
+RUN pip3 install --no-cache-dir "pydantic>=2.4.2,<2.5.0"
+RUN pip3 install --no-cache-dir "httpx>=0.25.0,<0.26.0"
+RUN pip3 install --no-cache-dir "prometheus-client>=0.17.1,<0.18.0"
+RUN pip3 install --no-cache-dir "torch>=2.0.0,<2.1.0"
+RUN pip3 install --no-cache-dir "vllm>=0.2.0,<0.6.0"
 
 # Copy application code
 COPY server.py .
