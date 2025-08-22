@@ -10,9 +10,8 @@ import asyncio
 import json
 from datetime import datetime
 
-# Add the project root to the path so we can import the modules
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+# Fix import path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from harness.run_bench import BenchmarkRunner
 
 async def run_test_benchmark(config_file):

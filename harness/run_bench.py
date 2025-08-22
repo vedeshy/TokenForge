@@ -23,11 +23,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import local modules
-from report import generate_report
-from templates import utils as template_utils
-from evaluation import evaluate_response
-from evaluation.references import get_reference_for_question, get_reference_for_logical_problem, get_reference_for_code
-from profiling import MemoryProfiler
+from harness.report import generate_report
+from harness.templates import utils as template_utils
+from harness.evaluation import evaluate_response
+from harness.evaluation.references import get_reference_for_question, get_reference_for_logical_problem, get_reference_for_code
+from harness.profiling import MemoryProfiler
 
 class BenchmarkRunner:
     def __init__(self, run_id: str, config_path: str):
