@@ -147,9 +147,18 @@ def test_memory_profiling_workflow():
             # Convert numpy arrays to lists for JSON serialization
             serializable_profile = {
                 'timestamps': profile['timestamps'],
-                'cpu_memory': [int(m) for m in profile['cpu_memory']],
-                'gpu_memory': [int(m) if m else 0 for m in profile.get('gpu_memory', [])]
+                'cpu_memory': [int(m) for m in profile['cpu_memory']]
             }
+            
+            # Handle GPU memory if available
+            if 'gpu_memory' in profile and profile['gpu_memory']:
+                # Check if gpu_memory contains numbers or dictionaries
+                if profile['gpu_memory'] and isinstance(profile['gpu_memory'][0], dict):
+                    # If dictionaries, extract a key or convert to string
+                    serializable_profile['gpu_memory'] = [str(m) for m in profile['gpu_memory']]
+                else:
+                    # If numbers, convert to int
+                    serializable_profile['gpu_memory'] = [int(m) if m is not None else 0 for m in profile['gpu_memory']]
             json.dump(serializable_profile, f, indent=2)
         
         print(f"Memory profile saved to {profile_file}")
@@ -163,6 +172,20 @@ def test_memory_profiling_workflow():
             max_mem = max(profile['cpu_memory']) / (1024 * 1024)
             avg_mem = sum(profile['cpu_memory']) / len(profile['cpu_memory']) / (1024 * 1024)
             print(f"  CPU memory: min={min_mem:.2f} MB, avg={avg_mem:.2f} MB, max={max_mem:.2f} MB")
+        
+        # Print GPU memory stats if available in a usable format
+        if 'gpu_memory' in profile and profile['gpu_memory']:
+            try:
+                if not isinstance(profile['gpu_memory'][0], dict):
+                    # Only calculate if values are numbers
+                    gpu_values = [m for m in profile['gpu_memory'] if m is not None]
+                    if gpu_values:
+                        min_gpu = min(gpu_values) / (1024 * 1024)
+                        max_gpu = max(gpu_values) / (1024 * 1024)
+                        avg_gpu = sum(gpu_values) / len(gpu_values) / (1024 * 1024)
+                        print(f"  GPU memory: min={min_gpu:.2f} MB, avg={avg_gpu:.2f} MB, max={max_gpu:.2f} MB")
+            except (TypeError, ValueError) as e:
+                print(f"  GPU memory: Could not calculate statistics - {e}")
     
     finally:
         # Make sure profiling is stopped

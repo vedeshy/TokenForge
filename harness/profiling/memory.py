@@ -103,7 +103,19 @@ class MemoryProfiler:
                 # Get GPU memory usage if available
                 if self.track_gpu:
                     gpu_memory = get_gpu_memory_usage()
-                    self.samples["gpu_memory"].append(gpu_memory)
+                    
+                    # If GPU is available, extract total allocated memory
+                    if "gpu_available" not in gpu_memory or gpu_memory["gpu_available"] is not False:
+                        # Extract a single value for total GPU memory used
+                        total_gpu_memory = 0
+                        for key, value in gpu_memory.items():
+                            if "allocated" in key or "used" in key:
+                                total_gpu_memory += value
+                        
+                        self.samples["gpu_memory"].append(total_gpu_memory)
+                    else:
+                        # No GPU available
+                        self.samples["gpu_memory"].append(0)
                 
                 # Sleep for the specified interval
                 time.sleep(self.interval)
