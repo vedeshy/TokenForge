@@ -5,9 +5,14 @@ on:
     - cron: '0 0 * * *'  # Run at midnight every day
   workflow_dispatch:  # Allow manual triggering
 
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/tokenforge
+  IMAGE_NAME: ${{ github.actor }}/tokenforge
   CUDA_VERSION: '12.2'
   GPU_SKU: 'L4'
 
